@@ -4,6 +4,18 @@ import imageCompression from 'browser-image-compression';
 
 const DRAFT_STORAGE_KEY = 'draft_create_new_issue';
 
+// Senarai bahasa yang disokong untuk input suara
+const SUPPORTED_LANGUAGES = [
+  { code: 'en-US', label: 'English (US)' },
+  { code: 'en-GB', label: 'English (UK)' },
+  { code: 'ms-MY', label: 'Bahasa Melayu' },
+  { code: 'zh-CN', label: 'Mandarin (Simplified)' },
+  { code: 'ta-IN', label: 'Tamil' },
+  { code: 'ja-JP', label: 'Japanese' },
+  { code: 'ko-KR', label: 'Korean' },
+  { code: 'id-ID', label: 'Bahasa Indonesia' },
+];
+
 export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCreated }) {
   const [whatIssue, setWhatIssue] = useState('');
   const [description, setDescription] = useState('');
@@ -24,6 +36,12 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
   const [compressing, setCompressing] = useState(false);
   const [hasRestoredDraft, setHasRestoredDraft] = useState(false);
 
+  // Voice Input States
+  const [isListening, setIsListening] = useState(false);
+  const [selectedLang, setSelectedLang] = useState('en-US');
+  const [voiceError, setVoiceError] = useState('');
+  const recognitionRef = useRef(null);
+
   // Dynamic stations state
   const [stationList, setStationList] = useState([]);
   const [stationMode, setStationMode] = useState('select'); // 'select' | 'add' | 'delete'
@@ -39,6 +57,61 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
   const [variantLoading, setVariantLoading] = useState(false);
 
   const fileInputRef = useRef(null);
+
+  // Persediaan Web Speech API
+  useEffect(() => {
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (SpeechRecognition) {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        setDescription((prev) => (prev ? `${prev} ${transcript}` : transcript));
+      };
+
+      recognition.onerror = (event) => {
+        console.error('Speech recognition error:', event.error);
+        setIsListening(false);
+        if (event.error === 'not-allowed') {
+          setVoiceError('Microphone permission denied. Please allow access in browser settings.');
+        } else {
+          setVoiceError('Voice recognition error. Please try again.');
+        }
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognitionRef.current = recognition;
+    }
+  }, []);
+
+  // Fungsi toggle mikrofon (Start / Stop)
+  const toggleListening = () => {
+    if (!recognitionRef.current) {
+      alert('Speech recognition is not supported in this browser. Please use Chrome or Edge.');
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    } else {
+      setVoiceError('');
+      recognitionRef.current.lang = selectedLang;
+      try {
+        recognitionRef.current.start();
+        setIsListening(true);
+      } catch (err) {
+        console.error('Failed to start speech recognition:', err);
+      }
+    }
+  };
 
   // 1. Pulihkan draf daripada localStorage semasa komponen mula dimuatkan
   useEffect(() => {
@@ -402,7 +475,6 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
     setLoading(true);
 
     try {
-      // Gunakan maklumat daripada userProfile atau tetapkan nilai lalai staff
       const autoStaffName = userProfile?.full_name || pic || 'Staff';
       const staffEmail = 'staff@proton.com';
       const staffIdVal = userProfile?.staff_id || 'STAFF-ME';
@@ -530,17 +602,71 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
           />
         </div>
 
-        {/* Description */}
+        {/* Description with Voice Input Controls */}
         <div>
-          <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Description:</label>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px', flexWrap: 'wrap', gap: '6px' }}>
+            <label style={{ fontWeight: 'bold' }}>Description:</label>
+            
+            {/* Butang Mikrofon & Pemilih Bahasa */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <button
+                type="button"
+                onClick={toggleListening}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '4px 10px',
+                  fontSize: '12px',
+                  fontWeight: 'bold',
+                  borderRadius: '4px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: '#fff',
+                  backgroundColor: isListening ? '#dc2626' : '#2563eb',
+                  transition: 'background-color 0.2s'
+                }}
+              >
+                <span>{isListening ? '🛑' : '🎤'}</span>
+                <span>{isListening ? 'Listening...' : 'Voice to Text'}</span>
+              </button>
+
+              <select
+                value={selectedLang}
+                onChange={(e) => setSelectedLang(e.target.value)}
+                disabled={isListening}
+                style={{
+                  padding: '4px 6px',
+                  fontSize: '11px',
+                  borderRadius: '4px',
+                  border: '1px solid #ccc',
+                  backgroundColor: '#fff',
+                  cursor: 'pointer'
+                }}
+              >
+                {SUPPORTED_LANGUAGES.map((lang) => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
           <textarea 
             value={description} 
             onChange={(e) => setDescription(e.target.value)} 
             rows="4" 
             required
-            placeholder="Enter a Description" 
+            placeholder="Enter a Description or click 'Voice to Text' above..." 
             style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ccc', boxSizing: 'border-box' }}
           />
+
+          {voiceError && (
+            <small style={{ color: '#dc2626', display: 'block', marginTop: '4px' }}>
+              {voiceError}
+            </small>
+          )}
         </div>
 
         {/* Group Dropdown */}
