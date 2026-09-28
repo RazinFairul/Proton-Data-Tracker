@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import './App.css';
 import CreateIssue from './components/CreateIssue';
 import IssueList from './components/IssueList';
@@ -16,6 +16,12 @@ const DEFAULT_USER_PROFILE = {
 export default function App() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [activeTab, setActiveTab] = useState('home');
+
+  // Voice Assistant States
+  const [isListening, setIsListening] = useState(false);
+  const [voiceLanguage, setVoiceLanguage] = useState('en-US'); // 'en-US' atau 'ms-MY'
+  const [voiceFeedback, setVoiceFeedback] = useState('');
+  const recognitionRef = useRef(null);
 
   const checkIsPortrait = () => {
     return window.innerHeight > window.innerWidth || window.innerWidth <= 768;
@@ -86,6 +92,98 @@ export default function App() {
   const handleIssueCreated = () => {
     setRefreshTrigger((prev) => prev + 1);
     navigateTo('list');
+  };
+
+  // Setup Web Speech API for Global Voice Commands
+  useEffect(() => {
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.onresult = (event) => {
+      const command = event.results[0][0].transcript.toLowerCase().trim();
+      setVoiceFeedback(`Command: "${command}"`);
+
+      // Intent Matching / Kata Kunci Navigasi
+      if (
+        command.includes('dashboard') ||
+        command.includes('home') ||
+        command.includes('utama') ||
+        command.includes('papan pemuka')
+      ) {
+        navigateTo('home');
+      } else if (
+        command.includes('create') ||
+        command.includes('new issue') ||
+        command.includes('add issue') ||
+        command.includes('tambah isu') ||
+        command.includes('daftar isu')
+      ) {
+        navigateTo('create');
+      } else if (
+        command.includes('list') ||
+        command.includes('issue list') ||
+        command.includes('senarai') ||
+        command.includes('isu')
+      ) {
+        navigateTo('list');
+      } else if (
+        command.includes('analytic') ||
+        command.includes('analytics') ||
+        command.includes('carta') ||
+        command.includes('graf')
+      ) {
+        navigateTo('analytics');
+      } else if (
+        command.includes('tagmap') ||
+        command.includes('tag map')
+      ) {
+        navigateTo('tagmap');
+      } else {
+        setVoiceFeedback(`Unknown command: "${command}"`);
+      }
+    };
+
+    recognition.onerror = (event) => {
+      console.error('Speech recognition error:', event.error);
+      setIsListening(false);
+      setVoiceFeedback('Failed to recognize voice');
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+      setTimeout(() => setVoiceFeedback(''), 4000);
+    };
+
+    recognitionRef.current = recognition;
+  }, []);
+
+  const toggleVoiceAssistant = () => {
+    if (!recognitionRef.current) {
+      alert('Voice control is not supported on this browser. Please use Chrome or Edge.');
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    } else {
+      setVoiceFeedback('Listening for command...');
+      recognitionRef.current.lang = voiceLanguage;
+      try {
+        recognitionRef.current.start();
+        setIsListening(true);
+      } catch (err) {
+        console.error('Failed to start voice assistant:', err);
+      }
+    }
   };
 
   return (
@@ -260,6 +358,86 @@ export default function App() {
           <TagMapUpdates onBack={handleBackNavigation} />
         </div>
       )}
+
+      {/* Global Floating Voice Assistant */}
+      <div 
+        style={{
+          position: 'fixed',
+          bottom: '24px',
+          right: '24px',
+          zIndex: 9999,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'flex-end',
+          gap: '8px'
+        }}
+      >
+        {/* Visual Feedback Bubble */}
+        {voiceFeedback && (
+          <div
+            style={{
+              backgroundColor: '#1e293b',
+              color: '#ffffff',
+              padding: '6px 12px',
+              borderRadius: '20px',
+              fontSize: '12px',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              maxWidth: '220px',
+              textAlign: 'center'
+            }}
+          >
+            {voiceFeedback}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          {/* Language Selector */}
+          <select
+            value={voiceLanguage}
+            onChange={(e) => setVoiceLanguage(e.target.value)}
+            disabled={isListening}
+            style={{
+              padding: '6px',
+              fontSize: '11px',
+              borderRadius: '20px',
+              border: '1px solid #cbd5e1',
+              backgroundColor: '#ffffff',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+              cursor: 'pointer'
+            }}
+          >
+            <option value="en-US">EN</option>
+            <option value="ms-MY">BM</option>
+          </select>
+
+          {/* Floating Action Button */}
+          <button
+            type="button"
+            onClick={toggleVoiceAssistant}
+            title={isListening ? 'Click to stop' : 'Click to talk (e.g. "go to dashboard", "issue list")'}
+            style={{
+              width: '54px',
+              height: '54px',
+              borderRadius: '50%',
+              border: 'none',
+              backgroundColor: isListening ? '#dc2626' : '#0d3b66',
+              color: '#ffffff',
+              fontSize: '22px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              boxShadow: isListening 
+                ? '0 0 15px rgba(220, 38, 38, 0.7)' 
+                : '0 4px 14px rgba(13, 59, 102, 0.4)',
+              transition: 'all 0.3s ease',
+              transform: isListening ? 'scale(1.08)' : 'scale(1)',
+            }}
+          >
+            {isListening ? '🛑' : '🎙️'}
+          </button>
+        </div>
+      </div>
 
       {/* Footer */}
       <div className="footer">
