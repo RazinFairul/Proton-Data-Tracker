@@ -17,6 +17,9 @@ export default function App() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [activeTab, setActiveTab] = useState('home');
 
+  // Shared form voice command state to pass into CreateIssue
+  const [voiceFormCommand, setVoiceFormCommand] = useState(null);
+
   // Voice Assistant States
   const [isListening, setIsListening] = useState(false);
   const [voiceLanguage, setVoiceLanguage] = useState('en-US'); // 'en-US' atau 'ms-MY'
@@ -94,7 +97,7 @@ export default function App() {
     navigateTo('list');
   };
 
-  // Setup Web Speech API for Global Voice Commands
+  // Setup Web Speech API for Universal Voice Control
   useEffect(() => {
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -108,53 +111,73 @@ export default function App() {
     recognition.interimResults = false;
 
     recognition.onresult = (event) => {
-      const command = event.results[0][0].transcript.toLowerCase().trim();
-      setVoiceFeedback(`Command: "${command}"`);
+      const rawText = event.results[0][0].transcript;
+      const command = rawText.toLowerCase().trim();
+      setVoiceFeedback(`"${rawText}"`);
 
-      // Intent Matching / Kata Kunci Navigasi
+      // 1. Navigation Command Matching
       if (
         command.includes('dashboard') ||
-        command.includes('home') ||
-        command.includes('utama') ||
-        command.includes('papan pemuka')
+        command.includes('go home') ||
+        command.includes('papan pemuka') ||
+        command === 'home'
       ) {
         navigateTo('home');
-      } else if (
-        command.includes('create') ||
+        setVoiceFeedback('Navigating to Dashboard');
+        return;
+      }
+      
+      if (
         command.includes('new issue') ||
+        command.includes('create issue') ||
         command.includes('add issue') ||
         command.includes('tambah isu') ||
-        command.includes('daftar isu')
+        command.includes('buka isu')
       ) {
         navigateTo('create');
-      } else if (
-        command.includes('list') ||
+        setVoiceFeedback('Navigating to Add Issue');
+        return;
+      }
+
+      if (
         command.includes('issue list') ||
-        command.includes('senarai') ||
-        command.includes('isu')
+        command.includes('list of issue') ||
+        command.includes('senarai isu') ||
+        command === 'list'
       ) {
         navigateTo('list');
-      } else if (
+        setVoiceFeedback('Navigating to Issue List');
+        return;
+      }
+
+      if (
         command.includes('analytic') ||
         command.includes('analytics') ||
-        command.includes('carta') ||
-        command.includes('graf')
+        command.includes('graf') ||
+        command.includes('carta')
       ) {
         navigateTo('analytics');
-      } else if (
+        setVoiceFeedback('Navigating to Analytics');
+        return;
+      }
+
+      if (
         command.includes('tagmap') ||
         command.includes('tag map')
       ) {
         navigateTo('tagmap');
-      } else {
-        setVoiceFeedback(`Unknown command: "${command}"`);
+        setVoiceFeedback('Navigating to TagMap');
+        return;
       }
+
+      // 2. Form Auto-Fill Command (Hantar ke borang CreateIssue)
+      setVoiceFormCommand({ text: rawText, timestamp: Date.now() });
     };
 
     recognition.onerror = (event) => {
       console.error('Speech recognition error:', event.error);
       setIsListening(false);
-      setVoiceFeedback('Failed to recognize voice');
+      setVoiceFeedback('Error capturing audio');
     };
 
     recognition.onend = () => {
@@ -167,7 +190,7 @@ export default function App() {
 
   const toggleVoiceAssistant = () => {
     if (!recognitionRef.current) {
-      alert('Voice control is not supported on this browser. Please use Chrome or Edge.');
+      alert('Speech recognition is not supported in this browser. Please use Chrome or Edge.');
       return;
     }
 
@@ -175,13 +198,13 @@ export default function App() {
       recognitionRef.current.stop();
       setIsListening(false);
     } else {
-      setVoiceFeedback('Listening for command...');
+      setVoiceFeedback('Listening...');
       recognitionRef.current.lang = voiceLanguage;
       try {
         recognitionRef.current.start();
         setIsListening(true);
       } catch (err) {
-        console.error('Failed to start voice assistant:', err);
+        console.error('Failed to start speech recognition:', err);
       }
     }
   };
@@ -329,7 +352,8 @@ export default function App() {
           <CreateIssue 
             userProfile={DEFAULT_USER_PROFILE} 
             onBackToDashboard={handleBackNavigation}
-            onIssueCreated={handleIssueCreated} 
+            onIssueCreated={handleIssueCreated}
+            voiceCommand={voiceFormCommand}
           />
         </div>
       )}
@@ -359,7 +383,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Global Floating Voice Assistant */}
+      {/* Satu Butang Universal Voice Floating Action Button */}
       <div 
         style={{
           position: 'fixed',
@@ -372,18 +396,20 @@ export default function App() {
           gap: '8px'
         }}
       >
-        {/* Visual Feedback Bubble */}
+        {/* Feedback visual teks arahan */}
         {voiceFeedback && (
           <div
             style={{
-              backgroundColor: '#1e293b',
-              color: '#ffffff',
-              padding: '6px 12px',
+              backgroundColor: '#0f172a',
+              color: '#38bdf8',
+              padding: '6px 14px',
               borderRadius: '20px',
               fontSize: '12px',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-              maxWidth: '220px',
-              textAlign: 'center'
+              fontWeight: 'bold',
+              boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
+              maxWidth: '260px',
+              textAlign: 'center',
+              border: '1px solid #38bdf8'
             }}
           >
             {voiceFeedback}
@@ -391,14 +417,14 @@ export default function App() {
         )}
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          {/* Language Selector */}
           <select
             value={voiceLanguage}
             onChange={(e) => setVoiceLanguage(e.target.value)}
             disabled={isListening}
             style={{
-              padding: '6px',
-              fontSize: '11px',
+              padding: '6px 10px',
+              fontSize: '12px',
+              fontWeight: 'bold',
               borderRadius: '20px',
               border: '1px solid #cbd5e1',
               backgroundColor: '#ffffff',
@@ -410,28 +436,27 @@ export default function App() {
             <option value="ms-MY">BM</option>
           </select>
 
-          {/* Floating Action Button */}
           <button
             type="button"
             onClick={toggleVoiceAssistant}
-            title={isListening ? 'Click to stop' : 'Click to talk (e.g. "go to dashboard", "issue list")'}
+            title={isListening ? 'Click to stop' : 'Universal Voice: navigate or fill form'}
             style={{
-              width: '54px',
-              height: '54px',
+              width: '56px',
+              height: '56px',
               borderRadius: '50%',
               border: 'none',
               backgroundColor: isListening ? '#dc2626' : '#0d3b66',
               color: '#ffffff',
-              fontSize: '22px',
+              fontSize: '24px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               cursor: 'pointer',
               boxShadow: isListening 
-                ? '0 0 15px rgba(220, 38, 38, 0.7)' 
-                : '0 4px 14px rgba(13, 59, 102, 0.4)',
+                ? '0 0 16px rgba(220, 38, 38, 0.8)' 
+                : '0 4px 14px rgba(13, 59, 102, 0.45)',
               transition: 'all 0.3s ease',
-              transform: isListening ? 'scale(1.08)' : 'scale(1)',
+              transform: isListening ? 'scale(1.1)' : 'scale(1)',
             }}
           >
             {isListening ? '🛑' : '🎙️'}
