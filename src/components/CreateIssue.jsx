@@ -4,7 +4,7 @@ import imageCompression from 'browser-image-compression';
 
 const DRAFT_STORAGE_KEY = 'draft_create_new_issue';
 
-export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCreated, voiceCommand }) {
+export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCreated }) {
   const [whatIssue, setWhatIssue] = useState('');
   const [description, setDescription] = useState('');
   const [groupName, setGroupName] = useState('');
@@ -23,144 +23,24 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
   const [loading, setLoading] = useState(false);
   const [compressing, setCompressing] = useState(false);
   const [hasRestoredDraft, setHasRestoredDraft] = useState(false);
-  const [voiceNotice, setVoiceNotice] = useState('');
 
   // Dynamic stations state
   const [stationList, setStationList] = useState([]);
-  const [stationMode, setStationMode] = useState('select');
+  const [stationMode, setStationMode] = useState('select'); // 'select' | 'add' | 'delete'
   const [newStationCode, setNewStationCode] = useState('');
   const [stationToDelete, setStationToDelete] = useState('');
   const [stationLoading, setStationLoading] = useState(false);
 
   // Dynamic variants state
   const [variantList, setVariantList] = useState([]);
-  const [variantMode, setVariantMode] = useState('select');
+  const [variantMode, setVariantMode] = useState('select'); // 'select' | 'add' | 'delete'
   const [newVariantName, setNewVariantName] = useState('');
   const [variantToDelete, setVariantToDelete] = useState('');
   const [variantLoading, setVariantLoading] = useState(false);
 
   const fileInputRef = useRef(null);
 
-  // -------------------------------------------------------------------------
-  // SMART VOICE PARSER: Menukar arahan suara kepada pengisian medan borang
-  // -------------------------------------------------------------------------
-  useEffect(() => {
-    if (!voiceCommand || !voiceCommand.text) return;
-
-    const raw = voiceCommand.text.trim();
-    const lower = raw.toLowerCase();
-
-    // A. Submit Form Action
-    if (lower === 'submit issue' || lower === 'submit' || lower === 'hantar isu') {
-      const submitBtn = document.getElementById('btn-submit-issue');
-      if (submitBtn) submitBtn.click();
-      setVoiceNotice('Action: Submitting issue...');
-      return;
-    }
-
-    // B. Clear Draft Action
-    if (lower === 'clear draft' || lower === 'padam draf') {
-      handleClearDraft();
-      setVoiceNotice('Action: Draft cleared.');
-      return;
-    }
-
-    // C. Parsing What Issue (Contoh: "Issue: motor overheat" / "Tajuk isu ...")
-    if (lower.startsWith('issue:') || lower.startsWith('issue ') || lower.startsWith('tajuk:')) {
-      const val = raw.replace(/^(issue:|issue|tajuk:)\s*/i, '').trim();
-      setWhatIssue(val);
-      setVoiceNotice(`What Issue updated: "${val}"`);
-      return;
-    }
-
-    // D. Parsing Description (Contoh: "Description: breakdown at line 3" / "Penerangan ...")
-    if (lower.startsWith('description:') || lower.startsWith('description ') || lower.startsWith('penerangan:')) {
-      const val = raw.replace(/^(description:|description|penerangan:)\s*/i, '').trim();
-      setDescription((prev) => (prev ? `${prev} ${val}` : val));
-      setVoiceNotice(`Description updated: "${val}"`);
-      return;
-    }
-
-    // E. Parsing PIC (Contoh: "PIC: Ahmad Razali" / "Person in charge ...")
-    if (lower.startsWith('pic:') || lower.startsWith('pic ') || lower.startsWith('person in charge:')) {
-      const val = raw.replace(/^(pic:|pic|person in charge:)\s*/i, '').trim();
-      setPic(val);
-      setVoiceNotice(`PIC set to: "${val}"`);
-      return;
-    }
-
-    // F. Parsing Group Dropdown (Contoh: "Group Assembly Line", "Group IT")
-    if (lower.includes('assembly line')) {
-      setGroupName('Assembly Line');
-      setVoiceNotice('Group: Assembly Line selected');
-      return;
-    }
-    if (lower.includes('test line')) {
-      setGroupName('Test Line');
-      setVoiceNotice('Group: Test Line selected');
-      return;
-    }
-    if (lower.includes('7dct') || lower.includes('dct')) {
-      setGroupName('7DCT');
-      setVoiceNotice('Group: 7DCT selected');
-      return;
-    }
-    if (lower.includes('edu') || lower.includes('dht')) {
-      setGroupName('EDU & DHT');
-      setVoiceNotice('Group: EDU & DHT selected');
-      return;
-    }
-    if (lower.includes('group it') || lower === 'it') {
-      setGroupName('IT');
-      setVoiceNotice('Group: IT selected');
-      return;
-    }
-
-    // G. Parsing Classification (Contoh: "Class A", "Class B", "Class C")
-    if (lower.includes('class a') || lower.includes('kelas a')) {
-      setClassification('A');
-      setVoiceNotice('Classification: Class A selected');
-      return;
-    }
-    if (lower.includes('class b') || lower.includes('kelas b')) {
-      setClassification('B');
-      setVoiceNotice('Classification: Class B selected');
-      return;
-    }
-    if (lower.includes('class c') || lower.includes('kelas c')) {
-      setClassification('C');
-      setVoiceNotice('Classification: Class C selected');
-      return;
-    }
-
-    // H. Parsing Station Match (Contoh sebut: "Station STN700M")
-    if (lower.startsWith('station') || lower.startsWith('stesen')) {
-      const targetCode = raw.replace(/^(station|stesen)\s*/i, '').trim().toUpperCase();
-      const matchedStn = stationList.find((s) => s.toUpperCase() === targetCode);
-      if (matchedStn) {
-        setLocation(matchedStn);
-        setVoiceNotice(`Station: ${matchedStn} selected`);
-        return;
-      }
-    }
-
-    // I. Parsing Variant Match (Contoh sebut: "Variant CFN-000")
-    if (lower.startsWith('variant') || lower.startsWith('varian')) {
-      const targetVar = raw.replace(/^(variant|varian)\s*/i, '').trim().toUpperCase();
-      const matchedVar = variantList.find((v) => v.toUpperCase() === targetVar);
-      if (matchedVar) {
-        setEngineVariant(matchedVar);
-        setVoiceNotice(`Variant: ${matchedVar} selected`);
-        return;
-      }
-    }
-
-    // Default Fallback: Jika pengguna hanya bercakap biasa tanpa kata kunci, masukkan ke Description
-    setDescription((prev) => (prev ? `${prev} ${raw}` : raw));
-    setVoiceNotice(`Added to Description: "${raw}"`);
-  }, [voiceCommand, stationList, variantList]);
-
-  // 1. Pulihkan draf daripada localStorage semasa komponen dimuatkan
+  // 1. Pulihkan draf daripada localStorage semasa komponen mula dimuatkan
   useEffect(() => {
     const savedDraft = localStorage.getItem(DRAFT_STORAGE_KEY);
     if (savedDraft) {
@@ -183,7 +63,7 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
     }
   }, []);
 
-  // 2. Simpan draf ke localStorage setiap kali ada medan yang berubah
+  // 2. Simpan draf ke localStorage setiap kali ada medan teks yang berubah
   useEffect(() => {
     const draftPayload = {
       whatIssue,
@@ -227,7 +107,11 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
     linkList,
   ]);
 
+  // Fungsi mengosongkan draf secara manual
   const handleClearDraft = () => {
+    const confirmClear = window.confirm('Are you sure you want to clear this draft and reset all fields?');
+    if (!confirmClear) return;
+
     localStorage.removeItem(DRAFT_STORAGE_KEY);
     setWhatIssue('');
     setDescription('');
@@ -244,7 +128,7 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
     setHasRestoredDraft(false);
   };
 
-  // Fetch stations from Supabase table based on selected Group
+  // Fetch stations daripada Supabase mengikut Kumpulan
   useEffect(() => {
     if (!groupName) {
       setStationList([]);
@@ -281,7 +165,7 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
     fetchStations();
   }, [groupName]);
 
-  // Fetch variants from Supabase table on load
+  // Fetch variants daripada Supabase
   useEffect(() => {
     const fetchVariants = async () => {
       setVariantLoading(true);
@@ -308,6 +192,7 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
     fetchVariants();
   }, []);
 
+  // Handle group change
   const handleGroupChange = (e) => {
     const selectedGroup = e.target.value;
     setGroupName(selectedGroup);
@@ -315,6 +200,7 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
     setStationMode('select');
   };
 
+  // Add new station to Supabase
   const handleAddNewStation = async () => {
     const trimmed = newStationCode.trim().toUpperCase();
     if (!trimmed) {
@@ -346,6 +232,7 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
     setStationLoading(false);
   };
 
+  // Delete station from Supabase
   const handleDeleteStation = async () => {
     if (!stationToDelete) {
       alert('Please select a station to delete.');
@@ -381,6 +268,7 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
     setStationLoading(false);
   };
 
+  // Add new variant to Supabase
   const handleAddNewVariant = async () => {
     const trimmed = newVariantName.trim().toUpperCase();
     if (!trimmed) {
@@ -410,6 +298,7 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
     setVariantLoading(false);
   };
 
+  // Delete variant from Supabase
   const handleDeleteVariant = async () => {
     if (!variantToDelete) {
       alert('Please select a variant to delete.');
@@ -442,6 +331,7 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
     setVariantLoading(false);
   };
 
+  // Multi-Link Handlers
   const handleAddLink = () => {
     const trimmed = tempLinkInput.trim();
     if (!trimmed) return;
@@ -459,6 +349,7 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
     setLinkList((prev) => prev.filter((_, idx) => idx !== idxToRemove));
   };
 
+  // Remove selected file attachment
   const handleRemoveFile = () => {
     setFile(null);
     setCompressing(false);
@@ -467,6 +358,7 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
     }
   };
 
+  // Handle file selection and automatic image compression
   const handleFileChange = async (e) => {
     const selectedFile = e.target.files[0];
     if (!selectedFile) {
@@ -510,9 +402,10 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
     setLoading(true);
 
     try {
-      const autoStaffName = userProfile?.full_name || pic || 'Staff';
+      // Ditetapkan secara kekal kepada "Proton"
+      const autoStaffName = 'Proton';
       const staffEmail = 'staff@proton.com';
-      const staffIdVal = userProfile?.staff_id || 'STAFF-ME';
+      const staffIdVal = 'Proton ID';
       let fileUrl = null;
 
       if (file) {
@@ -535,6 +428,7 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
         fileUrl = urlData.publicUrl;
       }
 
+      // Initialise progress matrix with linkList mapped to Phase 1/4
       const initialProgressMatrix = {
         root_cause: '',
         countermeasure: '',
@@ -543,8 +437,6 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
           remark: '',
           links: linkList
         },
-        '2/4': { progress: '', remark: '', links: [] },
-        '3/4': { progress: '', remark: '', links: [] },
         '4/4': { progress: '', remark: '', links: [] }
       };
 
@@ -576,7 +468,9 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
         throw insertError;
       }
 
+      // Padam draf setelah rekod berjaya dimasukkan ke Supabase
       localStorage.removeItem(DRAFT_STORAGE_KEY);
+
       alert('Issue submitted successfully!');
 
       if (onIssueCreated) {
@@ -619,14 +513,6 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
         )}
       </div>
 
-      {/* Voice Parser Alert Notification */}
-      {voiceNotice && (
-        <div style={{ backgroundColor: '#ecfdf5', color: '#065f46', border: '1px solid #a7f3d0', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', marginBottom: '12px', display: 'flex', justifyContent: 'space-between' }}>
-          <span>🎙️ {voiceNotice}</span>
-          <button type="button" onClick={() => setVoiceNotice('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#065f46', fontWeight: 'bold' }}>✕</button>
-        </div>
-      )}
-
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
         
         {/* What the Issue */}
@@ -637,7 +523,7 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
             value={whatIssue} 
             onChange={(e) => setWhatIssue(e.target.value)} 
             required
-            placeholder="e.g. Say 'Issue: Water Leakage'"
+            placeholder="Enter the Issue"
             style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ccc', boxSizing: 'border-box' }}
           />
         </div>
@@ -650,7 +536,7 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
             onChange={(e) => setDescription(e.target.value)} 
             rows="4" 
             required
-            placeholder="e.g. Say 'Description: Oil leaking near station' or just speak" 
+            placeholder="Enter a Description" 
             style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ccc', boxSizing: 'border-box' }}
           />
         </div>
@@ -1039,7 +925,7 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
             value={pic} 
             onChange={(e) => setPic(e.target.value)} 
             required 
-            placeholder="e.g. Say 'PIC: Farid'"
+            placeholder="Enter Person in Charge"
             style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ccc', boxSizing: 'border-box', fontSize: '16px' }}
           />
         </div>
@@ -1094,7 +980,7 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
           />
         </div>
 
-        {/* File Uploads */}
+        {/* File Uploads with Cancel Button */}
         <div>
           <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>File Uploads:</label>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1187,6 +1073,7 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
             *Recommended for large files or videos exceeding standard storage limits.
           </small>
 
+          {/* List of Added Links */}
           {linkList.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '8px' }}>
               {linkList.map((lnk, idx) => (
@@ -1225,7 +1112,6 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
         </div>
 
         <button 
-          id="btn-submit-issue"
           type="submit" 
           disabled={loading || compressing}
           style={{ 

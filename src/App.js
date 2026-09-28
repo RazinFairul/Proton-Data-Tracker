@@ -1,10 +1,11 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import './App.css';
 import CreateIssue from './components/CreateIssue';
 import IssueList from './components/IssueList';
 import TagMapUpdates from './components/TagMap';
 import DashboardAnalytics from './components/DashboardAnalytics';
 
+// Profil default sistem tanpa login
 const DEFAULT_USER_PROFILE = {
   id: '00000000-0000-0000-0000-000000000000',
   department: 'ME',
@@ -17,15 +18,7 @@ export default function App() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [activeTab, setActiveTab] = useState('home');
 
-  // Shared form voice command state to pass into CreateIssue
-  const [voiceFormCommand, setVoiceFormCommand] = useState(null);
-
-  // Voice Assistant States
-  const [isListening, setIsListening] = useState(false);
-  const [voiceLanguage, setVoiceLanguage] = useState('en-US'); // 'en-US' atau 'ms-MY'
-  const [voiceFeedback, setVoiceFeedback] = useState('');
-  const recognitionRef = useRef(null);
-
+  // Pengesanan Orientasi Dinamik: Potret vs Landskap
   const checkIsPortrait = () => {
     return window.innerHeight > window.innerWidth || window.innerWidth <= 768;
   };
@@ -46,6 +39,7 @@ export default function App() {
     };
   }, []);
 
+  // Tangkap issueId daripada parameter URL dan navigasi terus ke senarai isu
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
     const targetIssueId = searchParams.get('issueId');
@@ -54,6 +48,7 @@ export default function App() {
     }
   }, []);
 
+  // URL Hash Navigation tanpa sekatan login
   useEffect(() => {
     const handleHashChange = () => {
       const searchParams = new URLSearchParams(window.location.search);
@@ -97,118 +92,6 @@ export default function App() {
     navigateTo('list');
   };
 
-  // Setup Web Speech API for Universal Voice Control
-  useEffect(() => {
-    const SpeechRecognition =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
-
-    if (!SpeechRecognition) {
-      return;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.continuous = false;
-    recognition.interimResults = false;
-
-    recognition.onresult = (event) => {
-      const rawText = event.results[0][0].transcript;
-      const command = rawText.toLowerCase().trim();
-      setVoiceFeedback(`"${rawText}"`);
-
-      // 1. Navigation Command Matching
-      if (
-        command.includes('dashboard') ||
-        command.includes('go home') ||
-        command.includes('papan pemuka') ||
-        command === 'home'
-      ) {
-        navigateTo('home');
-        setVoiceFeedback('Navigating to Dashboard');
-        return;
-      }
-      
-      if (
-        command.includes('new issue') ||
-        command.includes('create issue') ||
-        command.includes('add issue') ||
-        command.includes('tambah isu') ||
-        command.includes('buka isu')
-      ) {
-        navigateTo('create');
-        setVoiceFeedback('Navigating to Add Issue');
-        return;
-      }
-
-      if (
-        command.includes('issue list') ||
-        command.includes('list of issue') ||
-        command.includes('senarai isu') ||
-        command === 'list'
-      ) {
-        navigateTo('list');
-        setVoiceFeedback('Navigating to Issue List');
-        return;
-      }
-
-      if (
-        command.includes('analytic') ||
-        command.includes('analytics') ||
-        command.includes('graf') ||
-        command.includes('carta')
-      ) {
-        navigateTo('analytics');
-        setVoiceFeedback('Navigating to Analytics');
-        return;
-      }
-
-      if (
-        command.includes('tagmap') ||
-        command.includes('tag map')
-      ) {
-        navigateTo('tagmap');
-        setVoiceFeedback('Navigating to TagMap');
-        return;
-      }
-
-      // 2. Form Auto-Fill Command (Hantar ke borang CreateIssue)
-      setVoiceFormCommand({ text: rawText, timestamp: Date.now() });
-    };
-
-    recognition.onerror = (event) => {
-      console.error('Speech recognition error:', event.error);
-      setIsListening(false);
-      setVoiceFeedback('Error capturing audio');
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-      setTimeout(() => setVoiceFeedback(''), 4000);
-    };
-
-    recognitionRef.current = recognition;
-  }, []);
-
-  const toggleVoiceAssistant = () => {
-    if (!recognitionRef.current) {
-      alert('Speech recognition is not supported in this browser. Please use Chrome or Edge.');
-      return;
-    }
-
-    if (isListening) {
-      recognitionRef.current.stop();
-      setIsListening(false);
-    } else {
-      setVoiceFeedback('Listening...');
-      recognitionRef.current.lang = voiceLanguage;
-      try {
-        recognitionRef.current.start();
-        setIsListening(true);
-      } catch (err) {
-        console.error('Failed to start speech recognition:', err);
-      }
-    }
-  };
-
   return (
     <div className={`dashboard-container ${isPortrait ? 'is-portrait' : 'is-landscape'}`}>
       {/* Top Navigation Bar */}
@@ -236,7 +119,7 @@ export default function App() {
         <div className={`dashboard-grid ${isPortrait ? 'portrait-layout' : 'landscape-layout'}`}>
           <div className="hero-card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between' }}>
             
-            {/* Header Akronim Center */}
+            {/* Header Akronim R.A.Z.I.N (Center) */}
             <div className="hero-title" style={{ textAlign: 'center', width: '100%' }}>
               <h1 style={{ letterSpacing: '4px', marginBottom: '14px', fontSize: '28px', textAlign: 'center' }}>
                 R.A.Z.I.N
@@ -352,8 +235,7 @@ export default function App() {
           <CreateIssue 
             userProfile={DEFAULT_USER_PROFILE} 
             onBackToDashboard={handleBackNavigation}
-            onIssueCreated={handleIssueCreated}
-            voiceCommand={voiceFormCommand}
+            onIssueCreated={handleIssueCreated} 
           />
         </div>
       )}
@@ -382,87 +264,6 @@ export default function App() {
           <TagMapUpdates onBack={handleBackNavigation} />
         </div>
       )}
-
-      {/* Satu Butang Universal Voice Floating Action Button */}
-      <div 
-        style={{
-          position: 'fixed',
-          bottom: '24px',
-          right: '24px',
-          zIndex: 9999,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'flex-end',
-          gap: '8px'
-        }}
-      >
-        {/* Feedback visual teks arahan */}
-        {voiceFeedback && (
-          <div
-            style={{
-              backgroundColor: '#0f172a',
-              color: '#38bdf8',
-              padding: '6px 14px',
-              borderRadius: '20px',
-              fontSize: '12px',
-              fontWeight: 'bold',
-              boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
-              maxWidth: '260px',
-              textAlign: 'center',
-              border: '1px solid #38bdf8'
-            }}
-          >
-            {voiceFeedback}
-          </div>
-        )}
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <select
-            value={voiceLanguage}
-            onChange={(e) => setVoiceLanguage(e.target.value)}
-            disabled={isListening}
-            style={{
-              padding: '6px 10px',
-              fontSize: '12px',
-              fontWeight: 'bold',
-              borderRadius: '20px',
-              border: '1px solid #cbd5e1',
-              backgroundColor: '#ffffff',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-              cursor: 'pointer'
-            }}
-          >
-            <option value="en-US">EN</option>
-            <option value="ms-MY">BM</option>
-          </select>
-
-          <button
-            type="button"
-            onClick={toggleVoiceAssistant}
-            title={isListening ? 'Click to stop' : 'Universal Voice: navigate or fill form'}
-            style={{
-              width: '56px',
-              height: '56px',
-              borderRadius: '50%',
-              border: 'none',
-              backgroundColor: isListening ? '#dc2626' : '#0d3b66',
-              color: '#ffffff',
-              fontSize: '24px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              boxShadow: isListening 
-                ? '0 0 16px rgba(220, 38, 38, 0.8)' 
-                : '0 4px 14px rgba(13, 59, 102, 0.45)',
-              transition: 'all 0.3s ease',
-              transform: isListening ? 'scale(1.1)' : 'scale(1)',
-            }}
-          >
-            {isListening ? '🛑' : '🎙️'}
-          </button>
-        </div>
-      </div>
 
       {/* Footer */}
       <div className="footer">
