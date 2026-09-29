@@ -39,8 +39,9 @@ export default function DashboardAnalytics() {
   const [selectedWeek, setSelectedWeek] = useState('all');
   const [selectedYear, setSelectedYear] = useState(CURRENT_YEAR);
 
-  // Group Filter
+  // Group & PIC Filters
   const [selectedGroup, setSelectedGroup] = useState('all');
+  const [selectedPic, setSelectedPic] = useState('all');
 
   // Classification Cross-Filter
   const [selectedClassification, setSelectedClassification] = useState(null);
@@ -48,11 +49,10 @@ export default function DashboardAnalytics() {
   // Display States
   const [stats, setStats] = useState({ total: 0, inProgress: 0, closed: 0 });
   const [statusComboData, setStatusComboData] = useState([]);
-  const [locationData, setLocationData] = useState([]);
+  const [picChartData, setPicChartData] = useState([]);
   const [classificationData, setClassificationData] = useState([]);
   const [trendData, setTrendData] = useState([]);
   const [agingData, setAgingData] = useState([]);
-  const [showAllLocations, setShowAllLocations] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -72,7 +72,6 @@ export default function DashboardAnalytics() {
     return String(Math.min(5, Math.ceil(dayNumber / 7)));
   };
 
-  // Helper untuk mengenali status Closed (termasuk "Closed (4/4)", "Completed", dll.)
   const isClosedStatus = (statusStr) => {
     if (!statusStr) return false;
     const s = String(statusStr).trim().toLowerCase();
@@ -90,7 +89,7 @@ export default function DashboardAnalytics() {
     if (!rawIssues.length) {
       setStats({ total: 0, inProgress: 0, closed: 0 });
       setStatusComboData([]);
-      setLocationData([]);
+      setPicChartData([]);
       setClassificationData([]);
       setTrendData([]);
       setAgingData([]);
@@ -99,11 +98,18 @@ export default function DashboardAnalytics() {
 
     const now = new Date();
 
-    // 1. Filter Date & Group
-    const dateAndGroupFiltered = rawIssues.filter((item) => {
+    // 1. Filter Date, Group & PIC
+    const baseFiltered = rawIssues.filter((item) => {
+      // Group Filter
       if (selectedGroup !== 'all') {
         const itemGroup = (item.group_name || '').trim().toLowerCase();
         if (itemGroup !== selectedGroup.trim().toLowerCase()) return false;
+      }
+
+      // PIC Filter
+      if (selectedPic !== 'all') {
+        const itemPic = (item.pic_name || item.pic || '').trim().toLowerCase();
+        if (itemPic !== selectedPic.trim().toLowerCase()) return false;
       }
 
       if (filterMode === 'all') return true;
@@ -144,29 +150,36 @@ export default function DashboardAnalytics() {
       return true;
     });
 
-    // 2. Classification Distribution
+    // 2. Classification Distribution (Disesuaikan Class A, B, C)
     const classMap = {};
-    dateAndGroupFiltered.forEach((item) => {
-      const classKey = item.classification ? `Class ${item.classification.toUpperCase()}` : 'UNCLASSIFIED';
+    baseFiltered.forEach((item) => {
+      const rawC = (item.classification || '').toUpperCase().trim();
+      let classKey = 'UNCLASSIFIED';
+      if (rawC === 'A') classKey = 'Class A';
+      else if (rawC === 'B') classKey = 'Class B';
+      else if (rawC === 'C') classKey = 'Class C';
       classMap[classKey] = (classMap[classKey] || 0) + 1;
     });
 
-    // 3. Cross-filtering
+    // 3. Cross-filtering Classification
     const fullyFiltered = selectedClassification
-      ? dateAndGroupFiltered.filter((item) => {
-          const c = item.classification ? `Class ${item.classification.toUpperCase()}` : 'UNCLASSIFIED';
+      ? baseFiltered.filter((item) => {
+          const rawC = (item.classification || '').toUpperCase().trim();
+          let c = 'UNCLASSIFIED';
+          if (rawC === 'A') c = 'Class A';
+          else if (rawC === 'B') c = 'Class B';
+          else if (rawC === 'C') c = 'Class C';
           return c === selectedClassification;
         })
-      : dateAndGroupFiltered;
+      : baseFiltered;
 
     let inProgressCount = 0;
     let closedCount = 0;
-    const locationMap = {};
+    const picDistribution = {};
     
-    // Klasifikasi Aging berdasarkan Estimated Closing Date
-    let agingHealthy = 0; // On Track (> 3 hari tersisa)
-    let agingDueSoon = 0; // Moderate / Due Soon (0 - 3 hari tersisa)
-    let agingOverdue = 0; // Critical Overdue (Melewati batas waktu penutupan)
+    let agingHealthy = 0; 
+    let agingDueSoon = 0; 
+    let agingOverdue = 0; 
 
     fullyFiltered.forEach((item) => {
       const isDone = isClosedStatus(item.status);
@@ -177,15 +190,15 @@ export default function DashboardAnalytics() {
         inProgressCount++;
       }
 
-      const loc = item.location ? item.location.toUpperCase() : 'UNKNOWN';
-      locationMap[loc] = (locationMap[loc] || 0) + 1;
+      // PIC Counting
+      const p = item.pic_name || item.pic || 'Others';
+      picDistribution[p] = (picDistribution[p] || 0) + 1;
 
-      // Logika Aging khusus untuk issue yang masih pending / ongoing
+      // Aging calculation
       if (!isDone) {
         const estStr = item.estimated_closing;
         if (estStr) {
           let estDate = null;
-          // Format ISO / YYYY-MM-DD
           if (estStr.includes('-')) {
             const parts = estStr.split('T')[0].split(' ')[0].split('-');
             if (parts[0].length === 4) {
@@ -193,7 +206,6 @@ export default function DashboardAnalytics() {
             } else {
               estDate = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
             }
-          // Format DD/MM/YY atau DD/MM/YYYY
           } else if (estStr.includes('/')) {
             const parts = estStr.split('/');
             const yearVal = parts[2].length === 2 ? Number('20' + parts[2]) : Number(parts[2]);
@@ -206,11 +218,11 @@ export default function DashboardAnalytics() {
             const diffDays = Math.ceil((targetClean.getTime() - todayClean.getTime()) / (1000 * 60 * 60 * 24));
 
             if (diffDays < 0) {
-              agingOverdue++; // Tanggal target sudah lewat
+              agingOverdue++;
             } else if (diffDays <= 3) {
-              agingDueSoon++; // Tersisa 0 - 3 hari
+              agingDueSoon++;
             } else {
-              agingHealthy++; // Masih banyak waktu (> 3 hari)
+              agingHealthy++;
             }
           } else {
             agingOverdue++;
@@ -283,13 +295,13 @@ export default function DashboardAnalytics() {
         .sort((a, b) => b.value - a.value)
     );
 
-    setLocationData(
-      Object.keys(locationMap)
-        .map((loc) => ({ location: loc, count: locationMap[loc] }))
+    // Set PIC Chart Data
+    setPicChartData(
+      Object.keys(picDistribution)
+        .map((p) => ({ pic: p, count: picDistribution[p] }))
         .sort((a, b) => b.count - a.count)
     );
 
-    // Aging Donut Data dengan nama kategori dan warna yang selaras
     setAgingData([
       { name: 'On Track (Healthy)', count: agingHealthy, fill: '#16a34a' },
       { name: 'Due Soon (≤ 3 Days)', count: agingDueSoon, fill: '#eab308' },
@@ -304,13 +316,12 @@ export default function DashboardAnalytics() {
       }))
     );
 
-  }, [rawIssues, filterMode, timeRange, selectedMonth, selectedWeek, selectedYear, selectedGroup, selectedClassification]);
+  }, [rawIssues, filterMode, timeRange, selectedMonth, selectedWeek, selectedYear, selectedGroup, selectedPic, selectedClassification]);
 
   useEffect(() => {
     processDashboard();
   }, [processDashboard]);
 
-  // Label persentase untuk Classification Pie Chart
   const renderCustomPercentageLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, value }) => {
     if (!value || percent === 0) return null;
     const RADIAN = Math.PI / 180;
@@ -332,7 +343,6 @@ export default function DashboardAnalytics() {
     );
   };
 
-  // Label persentase luar dengan garis penunjuk rapi
   const renderAgingPercentageLabel = ({ cx, cy, midAngle, outerRadius, percent, value }) => {
     if (!value || percent === 0) return null;
     const RADIAN = Math.PI / 180;
@@ -371,8 +381,6 @@ export default function DashboardAnalytics() {
     );
   };
 
-  const displayedLocationData = showAllLocations ? locationData : locationData.slice(0, 20);
-  const chartWidth = showAllLocations ? Math.max(1000, locationData.length * 45) : '100%';
   const closeRate = stats.total > 0 ? ((stats.closed / stats.total) * 100).toFixed(1) : 0;
   const maxAxisValue = Math.max(stats.total, 1);
   const totalActiveBacklog = stats.inProgress;
@@ -386,18 +394,37 @@ export default function DashboardAnalytics() {
         
         {/* Dropdown Filters */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          
+          {/* Group Filter */}
           <select
             value={selectedGroup}
             onChange={(e) => setSelectedGroup(e.target.value)}
             style={{ padding: '7px 10px', borderRadius: '5px', border: 'none', fontWeight: 'bold', cursor: 'pointer', color: '#0d3b66', backgroundColor: '#fff' }}
           >
             <option value="all">All Groups</option>
-            <option value="Assembly Line">Assembly Line</option>
-            <option value="Test Line">Test Line</option>
-            <option value="Transmission Line">Transmission Line</option>
-            <option value="IT">IT</option>
+            <option value="Safety">Safety</option>
+            <option value="Cost">Cost</option>
+            <option value="Quality">Quality</option>
+            <option value="Time">Time</option>
+            <option value="Management">Management</option>
+            <option value="Others">Others</option>
           </select>
 
+          {/* PIC Filter */}
+          <select
+            value={selectedPic}
+            onChange={(e) => setSelectedPic(e.target.value)}
+            style={{ padding: '7px 10px', borderRadius: '5px', border: 'none', fontWeight: 'bold', cursor: 'pointer', color: '#0d3b66', backgroundColor: '#fff' }}
+          >
+            <option value="all">All PICs</option>
+            <option value="SHE">SHE</option>
+            <option value="GTP">GTP</option>
+            <option value="Quality">Quality</option>
+            <option value="Top Management">Top Management</option>
+            <option value="Others">Others</option>
+          </select>
+
+          {/* Filter Mode */}
           <select
             value={filterMode}
             onChange={(e) => {
@@ -641,7 +668,7 @@ export default function DashboardAnalytics() {
                 </div>
               </div>
 
-              {/* Donut Chart */}
+              {/* Donut Chart: Aging */}
               <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
                 <h3 style={{ marginTop: 0, color: '#0d3b66', fontSize: '16px', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
                   ⏱️ Pending Issues Aging Breakdown
@@ -654,7 +681,6 @@ export default function DashboardAnalytics() {
                     </div>
                   ) : (
                     <>
-                      {/* Central Metric Indicator */}
                       <div
                         style={{
                           position: 'absolute',
@@ -704,41 +730,28 @@ export default function DashboardAnalytics() {
 
             </div>
 
-            {/* Row 3: Issues Breakdown by Location */}
+            {/* Row 3: Issues Breakdown by PIC (Ganti Location) */}
             <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #eee', paddingBottom: '10px', marginBottom: '15px' }}>
                 <h3 style={{ margin: 0, color: '#0d3b66', fontSize: '16px' }}>
-                  📍 Issues Breakdown by Location/Station ({showAllLocations ? 'All' : 'Top 20'})
+                  👷 Issues Breakdown by Person in Charge (PIC)
                 </h3>
-                <button
-                  onClick={() => setShowAllLocations(!showAllLocations)}
-                  style={{
-                    padding: '6px 12px',
-                    fontSize: '12px',
-                    fontWeight: 'bold',
-                    borderRadius: '4px',
-                    border: '1px solid #0d3b66',
-                    backgroundColor: '#fff',
-                    color: '#0d3b66',
-                    cursor: 'pointer'
-                  }}
-                >
-                  {showAllLocations ? 'Show Top 20' : 'Show All'}
-                </button>
               </div>
 
-              <div style={{ width: '100%', height: '350px', overflowX: showAllLocations ? 'auto' : 'hidden' }}>
-                <div style={{ width: chartWidth, height: '100%' }}>
+              <div style={{ width: '100%', height: '320px' }}>
+                {picChartData.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '100px 0', color: '#888' }}>No PIC data available</div>
+                ) : (
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={displayedLocationData} margin={{ top: 20, right: 30, left: 0, bottom: 25 }}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="location" interval={0} angle={-30} textAnchor="end" height={50} />
+                    <BarChart data={picChartData} margin={{ top: 20, right: 30, left: 0, bottom: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="pic" tick={{ fontWeight: 'bold', fontSize: 12 }} />
                       <YAxis allowDecimals={false} />
                       <Tooltip />
-                      <Bar dataKey="count" fill="#0d3b66" name="Total Issues" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="count" fill="#0d3b66" name="Total Issues" barSize={42} radius={[4, 4, 0, 0]} label={renderInsideBarLabel} />
                     </BarChart>
                   </ResponsiveContainer>
-                </div>
+                )}
               </div>
             </div>
 
