@@ -14,9 +14,55 @@ const DEFAULT_USER_PROFILE = {
   avatar_url: null,
 };
 
+// Senarai pilihan bahasa
+const LANGUAGES = [
+  { code: 'en', name: 'English', native: 'English' },
+  { code: 'ms', name: 'Malay', native: 'Bahasa Melayu' },
+  { code: 'zh-CN', name: 'Chinese (Simplified)', native: '简体中文' },
+  { code: 'zh-TW', name: 'Chinese (Traditional)', native: '繁體中文' },
+  { code: 'ja', name: 'Japanese', native: '日本語' },
+  { code: 'ko', name: 'Korean', native: '한국어' },
+  { code: 'ta', name: 'Tamil', native: 'தமிழ்' },
+  { code: 'id', name: 'Indonesian', native: 'Bahasa Indonesia' },
+  { code: 'th', name: 'Thai', native: 'ไทย' },
+];
+
 export default function App() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [activeTab, setActiveTab] = useState('home');
+
+  // Real-time Clock State
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Language Selector State
+  const [currentLang, setCurrentLang] = useState('English');
+  const [isLangOpen, setIsLangOpen] = useState(false);
+  const [langSearch, setLangSearch] = useState('');
+
+  // Update Clock setiap 1 saat
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const formatTime = (date) => {
+    return date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true,
+    });
+  };
+
+  const formatDate = (date) => {
+    return date.toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    }).toUpperCase();
+  };
 
   // Pengesanan Orientasi Dinamik: Potret vs Landskap
   const checkIsPortrait = () => {
@@ -92,14 +138,50 @@ export default function App() {
     navigateTo('list');
   };
 
+  const filteredLanguages = LANGUAGES.filter((lang) =>
+    lang.name.toLowerCase().includes(langSearch.toLowerCase()) ||
+    lang.native.toLowerCase().includes(langSearch.toLowerCase())
+  );
+
   return (
-    <div className={`dashboard-container ${isPortrait ? 'is-portrait' : 'is-landscape'}`}>
+    <div className={`dashboard-container ${isPortrait ? 'is-portrait' : 'is-landscape'}`} style={{ position: 'relative', minHeight: '100vh', paddingBottom: '70px' }}>
+      
       {/* Top Navigation Bar */}
-      <div className="top-nav" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+      <div 
+        className="top-nav" 
+        style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center', 
+          marginBottom: '20px',
+          flexWrap: 'wrap',
+          gap: '12px'
+        }}
+      >
         <div>
           <span style={{ fontWeight: 'bold', color: '#0d3b66', fontSize: '15px' }}>
             ⚙️ Proton Tracking System
           </span>
+        </div>
+
+        {/* Real-time Clock & Date Badge (Center) */}
+        <div 
+          style={{
+            backgroundColor: '#0c4a6e',
+            color: '#ffffff',
+            padding: '6px 18px',
+            borderRadius: '6px',
+            textAlign: 'center',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+            minWidth: '150px'
+          }}
+        >
+          <div style={{ fontSize: '15px', fontWeight: 'bold', letterSpacing: '0.5px' }}>
+            {formatTime(currentTime)}
+          </div>
+          <div style={{ fontSize: '10px', color: '#cbd5e1', fontWeight: 'bold', letterSpacing: '0.5px', marginTop: '1px' }}>
+            {formatDate(currentTime)}
+          </div>
         </div>
 
         <div>
@@ -107,6 +189,15 @@ export default function App() {
             <button 
               className="back-btn" 
               onClick={handleBackNavigation}
+              style={{
+                backgroundColor: '#0d3b66',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '8px 14px',
+                fontWeight: 'bold',
+                cursor: 'pointer'
+              }}
             >
               ⬅️ Back to Dashboard
             </button>
@@ -266,9 +357,122 @@ export default function App() {
       )}
 
       {/* Footer */}
-      <div className="footer">
+      <div className="footer" style={{ textAlign: 'center', marginTop: '30px', color: '#64748b', fontSize: '13px' }}>
         <span>©</span> Developed by Razin ME
       </div>
+
+      {/* Floating Language Button (Bottom Right) */}
+      <div style={{ position: 'fixed', bottom: '20px', right: '20px', zIndex: 999 }}>
+        <button
+          onClick={() => setIsLangOpen(!isLangOpen)}
+          style={{
+            backgroundColor: '#0c4a6e',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '24px',
+            padding: '10px 18px',
+            fontSize: '13px',
+            fontWeight: 'bold',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            cursor: 'pointer'
+          }}
+        >
+          <span>🌐 {currentLang}</span>
+          <span style={{ fontSize: '10px' }}>▲</span>
+        </button>
+
+        {/* Modal Popover Select Language */}
+        {isLangOpen && (
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '50px',
+              right: '0',
+              width: '280px',
+              backgroundColor: '#fff',
+              borderRadius: '8px',
+              boxShadow: '0 6px 20px rgba(0,0,0,0.18)',
+              border: '1px solid #e2e8f0',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column'
+            }}
+          >
+            {/* Header Modal */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', borderBottom: '1px solid #f1f5f9' }}>
+              <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                🌐 Select Language
+              </span>
+              <button
+                onClick={() => setIsLangOpen(false)}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Input Carian Bahasa */}
+            <div style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9' }}>
+              <input
+                type="text"
+                placeholder="Search language..."
+                value={langSearch}
+                onChange={(e) => setLangSearch(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '7px 10px',
+                  borderRadius: '5px',
+                  border: '1px solid #cbd5e1',
+                  fontSize: '12px',
+                  boxSizing: 'border-box',
+                  outline: 'none'
+                }}
+              />
+            </div>
+
+            {/* Senarai Bahasa */}
+            <div style={{ maxHeight: '220px', overflowY: 'auto' }}>
+              {filteredLanguages.map((lang) => (
+                <div
+                  key={lang.code}
+                  onClick={() => {
+                    setCurrentLang(lang.name);
+                    setIsLangOpen(false);
+                  }}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '9px 14px',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    backgroundColor: currentLang === lang.name ? '#f0f9ff' : '#fff',
+                    color: currentLang === lang.name ? '#0284c7' : '#334155',
+                    borderBottom: '1px solid #f8fafc'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (currentLang !== lang.name) e.currentTarget.style.backgroundColor = '#f8fafc';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (currentLang !== lang.name) e.currentTarget.style.backgroundColor = '#fff';
+                  }}
+                >
+                  <span style={{ fontWeight: currentLang === lang.name ? 'bold' : 'normal' }}>
+                    {lang.name}
+                  </span>
+                  <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                    {lang.native}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
     </div>
   );
 }
