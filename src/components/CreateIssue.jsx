@@ -8,8 +8,6 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
   const [whatIssue, setWhatIssue] = useState('');
   const [description, setDescription] = useState('');
   const [groupName, setGroupName] = useState('');
-  const [location, setLocation] = useState('');
-  const [engineVariant, setEngineVariant] = useState('');
   const [pic, setPic] = useState('');
   const [dateTime, setDateTime] = useState('');
   const [classification, setClassification] = useState('');
@@ -24,23 +22,9 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
   const [compressing, setCompressing] = useState(false);
   const [hasRestoredDraft, setHasRestoredDraft] = useState(false);
 
-  // Dynamic stations state
-  const [stationList, setStationList] = useState([]);
-  const [stationMode, setStationMode] = useState('select'); // 'select' | 'add' | 'delete'
-  const [newStationCode, setNewStationCode] = useState('');
-  const [stationToDelete, setStationToDelete] = useState('');
-  const [stationLoading, setStationLoading] = useState(false);
-
-  // Dynamic variants state
-  const [variantList, setVariantList] = useState([]);
-  const [variantMode, setVariantMode] = useState('select'); // 'select' | 'add' | 'delete'
-  const [newVariantName, setNewVariantName] = useState('');
-  const [variantToDelete, setVariantToDelete] = useState('');
-  const [variantLoading, setVariantLoading] = useState(false);
-
   const fileInputRef = useRef(null);
 
-  // 1. Pulihkan draf daripada localStorage semasa komponen mula dimuatkan
+  // 1. Pulihkan draf daripada localStorage semasa komponen dimuatkan
   useEffect(() => {
     const savedDraft = localStorage.getItem(DRAFT_STORAGE_KEY);
     if (savedDraft) {
@@ -49,8 +33,6 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
         if (parsed.whatIssue) setWhatIssue(parsed.whatIssue);
         if (parsed.description) setDescription(parsed.description);
         if (parsed.groupName) setGroupName(parsed.groupName);
-        if (parsed.location) setLocation(parsed.location);
-        if (parsed.engineVariant) setEngineVariant(parsed.engineVariant);
         if (parsed.pic) setPic(parsed.pic);
         if (parsed.dateTime) setDateTime(parsed.dateTime);
         if (parsed.classification) setClassification(parsed.classification);
@@ -63,14 +45,12 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
     }
   }, []);
 
-  // 2. Simpan draf ke localStorage setiap kali ada medan teks yang berubah
+  // 2. Simpan draf ke localStorage setiap kali ada input berubah
   useEffect(() => {
     const draftPayload = {
       whatIssue,
       description,
       groupName,
-      location,
-      engineVariant,
       pic,
       dateTime,
       classification,
@@ -82,8 +62,6 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
       whatIssue ||
       description ||
       groupName ||
-      location ||
-      engineVariant ||
       pic ||
       dateTime ||
       classification ||
@@ -98,8 +76,6 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
     whatIssue,
     description,
     groupName,
-    location,
-    engineVariant,
     pic,
     dateTime,
     classification,
@@ -116,8 +92,6 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
     setWhatIssue('');
     setDescription('');
     setGroupName('');
-    setLocation('');
-    setEngineVariant('');
     setPic('');
     setDateTime('');
     setClassification('');
@@ -126,209 +100,6 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
     setTempLinkInput('');
     handleRemoveFile();
     setHasRestoredDraft(false);
-  };
-
-  // Fetch stations daripada Supabase mengikut Kumpulan
-  useEffect(() => {
-    if (!groupName) {
-      setStationList([]);
-      setLocation('');
-      setStationMode('select');
-      return;
-    }
-
-    const fetchStations = async () => {
-      setStationLoading(true);
-      try {
-        let query = supabase.from('stations').select('station_code, group_name');
-
-        if (groupName !== 'IT') {
-          query = query.eq('group_name', groupName);
-        }
-
-        const { data, error } = await query.order('station_code', { ascending: true });
-
-        if (!error && data) {
-          const uniqueStations = Array.from(new Set(data.map((item) => item.station_code))).sort();
-          setStationList(uniqueStations);
-        } else {
-          setStationList([]);
-        }
-      } catch (err) {
-        console.error('Failed to fetch stations:', err);
-        setStationList([]);
-      } finally {
-        setStationLoading(false);
-      }
-    };
-
-    fetchStations();
-  }, [groupName]);
-
-  // Fetch variants daripada Supabase
-  useEffect(() => {
-    const fetchVariants = async () => {
-      setVariantLoading(true);
-      try {
-        const { data, error } = await supabase
-          .from('engine_variants')
-          .select('variant_name')
-          .order('variant_name', { ascending: true });
-
-        if (!error && data) {
-          const uniqueVariants = Array.from(new Set(data.map((item) => item.variant_name))).sort();
-          setVariantList(uniqueVariants);
-        } else {
-          setVariantList([]);
-        }
-      } catch (err) {
-        console.error('Failed to fetch variants:', err);
-        setVariantList([]);
-      } finally {
-        setVariantLoading(false);
-      }
-    };
-
-    fetchVariants();
-  }, []);
-
-  // Handle group change
-  const handleGroupChange = (e) => {
-    const selectedGroup = e.target.value;
-    setGroupName(selectedGroup);
-    setLocation('');
-    setStationMode('select');
-  };
-
-  // Add new station to Supabase
-  const handleAddNewStation = async () => {
-    const trimmed = newStationCode.trim().toUpperCase();
-    if (!trimmed) {
-      alert('Please enter a station code.');
-      return;
-    }
-
-    if (stationList.includes(trimmed)) {
-      alert('This station already exists in the list.');
-      return;
-    }
-
-    setStationLoading(true);
-    const targetGroup = groupName || 'Assembly Line';
-
-    const { error } = await supabase.from('stations').insert([
-      { group_name: targetGroup, station_code: trimmed }
-    ]);
-
-    if (error) {
-      alert('Failed to add station: ' + error.message);
-    } else {
-      const updated = [...stationList, trimmed].sort();
-      setStationList(updated);
-      setLocation(trimmed);
-      setNewStationCode('');
-      setStationMode('select');
-    }
-    setStationLoading(false);
-  };
-
-  // Delete station from Supabase
-  const handleDeleteStation = async () => {
-    if (!stationToDelete) {
-      alert('Please select a station to delete.');
-      return;
-    }
-
-    const confirmDelete = window.confirm(
-      `Are you sure you want to permanently delete station "${stationToDelete}"?`
-    );
-    if (!confirmDelete) return;
-
-    setStationLoading(true);
-    let query = supabase.from('stations').delete().eq('station_code', stationToDelete);
-
-    if (groupName !== 'IT') {
-      query = query.eq('group_name', groupName);
-    }
-
-    const { error } = await query;
-
-    if (error) {
-      alert('Failed to delete station: ' + error.message);
-    } else {
-      const updated = stationList.filter((s) => s !== stationToDelete);
-      setStationList(updated);
-      if (location === stationToDelete) {
-        setLocation('');
-      }
-      setStationToDelete('');
-      setStationMode('select');
-      alert(`Station "${stationToDelete}" has been deleted.`);
-    }
-    setStationLoading(false);
-  };
-
-  // Add new variant to Supabase
-  const handleAddNewVariant = async () => {
-    const trimmed = newVariantName.trim().toUpperCase();
-    if (!trimmed) {
-      alert('Please enter a variant name.');
-      return;
-    }
-
-    if (variantList.includes(trimmed)) {
-      alert('This variant already exists in the list.');
-      return;
-    }
-
-    setVariantLoading(true);
-    const { error } = await supabase.from('engine_variants').insert([
-      { variant_name: trimmed }
-    ]);
-
-    if (error) {
-      alert('Failed to add variant: ' + error.message);
-    } else {
-      const updated = [...variantList, trimmed].sort();
-      setVariantList(updated);
-      setEngineVariant(trimmed);
-      setNewVariantName('');
-      setVariantMode('select');
-    }
-    setVariantLoading(false);
-  };
-
-  // Delete variant from Supabase
-  const handleDeleteVariant = async () => {
-    if (!variantToDelete) {
-      alert('Please select a variant to delete.');
-      return;
-    }
-
-    const confirmDelete = window.confirm(
-      `Are you sure you want to permanently delete variant "${variantToDelete}"?`
-    );
-    if (!confirmDelete) return;
-
-    setVariantLoading(true);
-    const { error } = await supabase
-      .from('engine_variants')
-      .delete()
-      .eq('variant_name', variantToDelete);
-
-    if (error) {
-      alert('Failed to delete variant: ' + error.message);
-    } else {
-      const updated = variantList.filter((v) => v !== variantToDelete);
-      setVariantList(updated);
-      if (engineVariant === variantToDelete) {
-        setEngineVariant('');
-      }
-      setVariantToDelete('');
-      setVariantMode('select');
-      alert(`Variant "${variantToDelete}" has been deleted.`);
-    }
-    setVariantLoading(false);
   };
 
   // Multi-Link Handlers
@@ -402,7 +173,6 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
     setLoading(true);
 
     try {
-      // Ditetapkan secara kekal kepada "Proton"
       const autoStaffName = 'Proton';
       const staffEmail = 'staff@proton.com';
       const staffIdVal = 'Proton ID';
@@ -428,7 +198,7 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
         fileUrl = urlData.publicUrl;
       }
 
-      // Initialise progress matrix with linkList mapped to Phase 1/4
+      // Progress matrix (1/4 dan 4/4)
       const initialProgressMatrix = {
         root_cause: '',
         countermeasure: '',
@@ -445,8 +215,8 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
           what_issue: whatIssue,
           description: description,
           group_name: groupName,
-          location: location.trim() || null,
-          engine_variant: engineVariant.trim() || null,
+          location: null,
+          engine_variant: null,
           pic: pic,
           pic_name: pic,
           pic_email: staffEmail,
@@ -468,7 +238,7 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
         throw insertError;
       }
 
-      // Padam draf setelah rekod berjaya dimasukkan ke Supabase
+      // Padam draf setelah rekod berjaya dihantar
       localStorage.removeItem(DRAFT_STORAGE_KEY);
 
       alert('Issue submitted successfully!');
@@ -547,7 +317,7 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
           <select
             required
             value={groupName}
-            onChange={handleGroupChange}
+            onChange={(e) => setGroupName(e.target.value)}
             style={{
               width: '100%',
               padding: '10px',
@@ -561,373 +331,41 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
             }}
           >
             <option value="" disabled hidden>Choose Group</option>
-            <option value="Assembly Line" style={{ color: '#000' }}>Assembly Line</option>
-            <option value="Test Line" style={{ color: '#000' }}>Test Line</option>
-            <option value="7DCT" style={{ color: '#000' }}>7DCT</option>
-            <option value="EDU & DHT" style={{ color: '#000' }}>EDU & DHT</option>
-            <option value="IT" style={{ color: '#000' }}>IT (All Stations)</option>
+            <option value="Safety" style={{ color: '#000' }}>Safety</option>
+            <option value="Cost" style={{ color: '#000' }}>Cost</option>
+            <option value="Quality" style={{ color: '#000' }}>Quality</option>
+            <option value="Time" style={{ color: '#000' }}>Time</option>
+            <option value="Management" style={{ color: '#000' }}>Management</option>
+            <option value="Others" style={{ color: '#000' }}>Others</option>
           </select>
         </div>
 
-        {/* Station Field */}
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
-            <label style={{ fontWeight: 'bold' }}>Station:</label>
-            {groupName && (
-              <div style={{ display: 'flex', gap: '10px' }}>
-                {stationMode !== 'select' ? (
-                  <button
-                    type="button"
-                    onClick={() => setStationMode('select')}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#2563eb',
-                      cursor: 'pointer',
-                      fontSize: '12px',
-                      fontWeight: 'bold',
-                      textDecoration: 'underline'
-                    }}
-                  >
-                    ← Back to select
-                  </button>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setStationMode('add')}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: '#2563eb',
-                        cursor: 'pointer',
-                        fontSize: '12px',
-                        fontWeight: 'bold',
-                        textDecoration: 'underline'
-                      }}
-                    >
-                      + Add Station
-                    </button>
-                    <span style={{ color: '#cbd5e1' }}>|</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setStationToDelete(location || '');
-                        setStationMode('delete');
-                      }}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: '#dc2626',
-                        cursor: 'pointer',
-                        fontSize: '12px',
-                        fontWeight: 'bold',
-                        textDecoration: 'underline'
-                      }}
-                    >
-                      🗑️ Delete Station
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-
-          {stationMode === 'add' && (
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <input
-                type="text"
-                placeholder="Example: STN700M / STN700A-C"
-                value={newStationCode}
-                onChange={(e) => setNewStationCode(e.target.value.toUpperCase())}
-                style={{
-                  flex: 1,
-                  padding: '10px',
-                  borderRadius: '5px',
-                  border: '1px solid #2563eb',
-                  boxSizing: 'border-box',
-                  textTransform: 'uppercase',
-                  fontSize: '16px'
-                }}
-              />
-              <button
-                type="button"
-                onClick={handleAddNewStation}
-                disabled={stationLoading}
-                style={{
-                  padding: '10px 16px',
-                  backgroundColor: '#2563eb',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '5px',
-                  fontWeight: 'bold',
-                  cursor: 'pointer'
-                }}
-              >
-                {stationLoading ? 'Saving...' : 'Save'}
-              </button>
-            </div>
-          )}
-
-          {stationMode === 'delete' && (
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <select
-                value={stationToDelete}
-                onChange={(e) => setStationToDelete(e.target.value)}
-                style={{
-                  flex: 1,
-                  padding: '10px',
-                  borderRadius: '5px',
-                  border: '1px solid #dc2626',
-                  boxSizing: 'border-box',
-                  backgroundColor: '#fff',
-                  color: stationToDelete ? '#000' : '#888',
-                  fontSize: '16px'
-                }}
-              >
-                <option value="">-- Choose station to remove --</option>
-                {stationList.map((stn) => (
-                  <option key={stn} value={stn} style={{ color: '#000' }}>
-                    {stn}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={handleDeleteStation}
-                disabled={stationLoading || !stationToDelete}
-                style={{
-                  padding: '10px 14px',
-                  backgroundColor: !stationToDelete ? '#fca5a5' : '#dc2626',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '5px',
-                  fontWeight: 'bold',
-                  cursor: !stationToDelete ? 'not-allowed' : 'pointer',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                {stationLoading ? 'Deleting...' : 'Confirm Delete'}
-              </button>
-            </div>
-          )}
-
-          {stationMode === 'select' && (
-            <select
-              value={location}
-              disabled={!groupName || stationLoading}
-              onChange={(e) => setLocation(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '10px',
-                borderRadius: '5px',
-                border: '1px solid #ccc',
-                boxSizing: 'border-box',
-                backgroundColor: !groupName ? '#f8fafc' : '#fff',
-                color: location ? '#000' : '#888',
-                fontSize: '16px',
-                cursor: 'pointer'
-              }}
-            >
-              <option value="">
-                {!groupName
-                  ? 'Please select Group first'
-                  : stationLoading
-                  ? 'Loading stations...'
-                  : `-- Select Station (${stationList.length} available) --`}
-              </option>
-              {stationList.map((stn) => (
-                <option key={stn} value={stn} style={{ color: '#000' }}>
-                  {stn}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-
-        {/* Variant Field */}
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
-            <label style={{ fontWeight: 'bold' }}>Variant:</label>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              {variantMode !== 'select' ? (
-                <button
-                  type="button"
-                  onClick={() => setVariantMode('select')}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#2563eb',
-                    cursor: 'pointer',
-                    fontSize: '12px',
-                    fontWeight: 'bold',
-                    textDecoration: 'underline'
-                  }}
-                >
-                  ← Back to select
-                </button>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setVariantMode('add')}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#2563eb',
-                      cursor: 'pointer',
-                      fontSize: '12px',
-                      fontWeight: 'bold',
-                      textDecoration: 'underline'
-                    }}
-                  >
-                    + Add Variant
-                  </button>
-                  <span style={{ color: '#cbd5e1' }}>|</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setVariantToDelete(engineVariant || '');
-                      setVariantMode('delete');
-                    }}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#dc2626',
-                      cursor: 'pointer',
-                      fontSize: '12px',
-                      fontWeight: 'bold',
-                      textDecoration: 'underline'
-                    }}
-                  >
-                    🗑️ Delete Variant
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-
-          {variantMode === 'add' && (
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <input
-                type="text"
-                placeholder="Example: CFN-000 / AFD-A09"
-                value={newVariantName}
-                onChange={(e) => setNewVariantName(e.target.value.toUpperCase())}
-                style={{
-                  flex: 1,
-                  padding: '10px',
-                  borderRadius: '5px',
-                  border: '1px solid #2563eb',
-                  boxSizing: 'border-box',
-                  textTransform: 'uppercase',
-                  fontSize: '16px'
-                }}
-              />
-              <button
-                type="button"
-                onClick={handleAddNewVariant}
-                disabled={variantLoading}
-                style={{
-                  padding: '10px 16px',
-                  backgroundColor: '#2563eb',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '5px',
-                  fontWeight: 'bold',
-                  cursor: 'pointer'
-                }}
-              >
-                {variantLoading ? 'Saving...' : 'Save'}
-              </button>
-            </div>
-          )}
-
-          {variantMode === 'delete' && (
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <select
-                value={variantToDelete}
-                onChange={(e) => setVariantToDelete(e.target.value)}
-                style={{
-                  flex: 1,
-                  padding: '10px',
-                  borderRadius: '5px',
-                  border: '1px solid #dc2626',
-                  boxSizing: 'border-box',
-                  backgroundColor: '#fff',
-                  color: variantToDelete ? '#000' : '#888',
-                  fontSize: '16px'
-                }}
-              >
-                <option value="">-- Choose variant to remove --</option>
-                {variantList.map((v) => (
-                  <option key={v} value={v} style={{ color: '#000' }}>
-                    {v}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={handleDeleteVariant}
-                disabled={variantLoading || !variantToDelete}
-                style={{
-                  padding: '10px 14px',
-                  backgroundColor: !variantToDelete ? '#fca5a5' : '#dc2626',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '5px',
-                  fontWeight: 'bold',
-                  cursor: !variantToDelete ? 'not-allowed' : 'pointer',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                {variantLoading ? 'Deleting...' : 'Confirm Delete'}
-              </button>
-            </div>
-          )}
-
-          {variantMode === 'select' && (
-            <select
-              value={engineVariant}
-              disabled={variantLoading}
-              onChange={(e) => setEngineVariant(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '10px',
-                borderRadius: '5px',
-                border: '1px solid #ccc',
-                boxSizing: 'border-box',
-                backgroundColor: '#fff',
-                color: engineVariant ? '#000' : '#888',
-                fontSize: '16px',
-                cursor: 'pointer'
-              }}
-            >
-              <option value="">
-                {variantLoading
-                  ? 'Loading variants...'
-                  : `-- Select Variant (${variantList.length} available) --`}
-              </option>
-              {variantList.map((v) => (
-                <option key={v} value={v} style={{ color: '#000' }}>
-                  {v}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-
-        {/* Person in Charge (PIC) */}
+        {/* Person in Charge (PIC) Dropdown */}
         <div>
           <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Person in Charge (PIC):</label>
-          <input 
-            type="text" 
-            value={pic} 
-            onChange={(e) => setPic(e.target.value)} 
-            required 
-            placeholder="Enter Person in Charge"
-            style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ccc', boxSizing: 'border-box', fontSize: '16px' }}
-          />
+          <select
+            required
+            value={pic}
+            onChange={(e) => setPic(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '10px',
+              borderRadius: '5px',
+              border: '1px solid #ccc',
+              boxSizing: 'border-box',
+              backgroundColor: '#fff',
+              cursor: 'pointer',
+              color: pic ? '#000' : '#888',
+              fontSize: '16px'
+            }}
+          >
+            <option value="" disabled hidden>Choose Person in Charge</option>
+            <option value="SHE" style={{ color: '#000' }}>SHE</option>
+            <option value="GTP" style={{ color: '#000' }}>GTP</option>
+            <option value="Quality" style={{ color: '#000' }}>Quality</option>
+            <option value="Top Management" style={{ color: '#000' }}>Top Management</option>
+            <option value="Others" style={{ color: '#000' }}>Others</option>
+          </select>
         </div>
 
         {/* Time and Date */}
@@ -942,7 +380,7 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
           />
         </div>
 
-        {/* Issue Classification */}
+        {/* Issue Classification Dropdown */}
         <div>
           <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Issue Classification:</label>
           <select 
@@ -962,9 +400,9 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
             }}
           >
             <option value="" disabled hidden>Choose Issue Classification</option>
-            <option value="A" style={{ color: '#000' }}>Class A - Safety / Quality Issue / Government Issue / Without Temporary Countermeasure</option>
-            <option value="B" style={{ color: '#000' }}>Class B - Cause to Breakdown / Downtime Production / With Temporary Countermeasure</option>
-            <option value="C" style={{ color: '#000' }}>Class C - Minor Issue / Improvement</option>
+            <option value="A" style={{ color: '#000' }}>Class A - Issues without Temporary Countermeasures</option>
+            <option value="B" style={{ color: '#000' }}>Class B - Issues with Temporary Countermeasures</option>
+            <option value="C" style={{ color: '#000' }}>Class C - Minor Issues</option>
           </select>
         </div>
 
@@ -980,7 +418,7 @@ export default function CreateIssue({ userProfile, onBackToDashboard, onIssueCre
           />
         </div>
 
-        {/* File Uploads with Cancel Button */}
+        {/* File Uploads */}
         <div>
           <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>File Uploads:</label>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
